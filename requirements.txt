@@ -6,3 +6,4 @@ numpy
 customtkinter
 pystray
 Pillow
+imageio-ffmpeg

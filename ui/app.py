@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import ctypes
@@ -105,10 +106,15 @@ class App(ctk.CTk):
             height=28, font=("Segoe UI", 10), fg_color=BG_INPUT, border_width=0
         ).grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(
+            pf, text="\uE8DA", width=28, height=28, font=("Segoe MDL2 Assets", 13),
+            fg_color=BG_CONTROL, hover_color=BG_CONTROL_HOVER,
+            corner_radius=6, command=self._open_folder
+        ).grid(row=0, column=1, padx=(4, 0))
+        ctk.CTkButton(
             pf, text="\u2026", width=28, height=28, font=("", 13),
             fg_color=BG_CONTROL, hover_color=BG_CONTROL_HOVER,
             corner_radius=6, command=self._pick_folder
-        ).grid(row=0, column=1, padx=(4, 0))
+        ).grid(row=0, column=2, padx=(4, 0))
 
         self._format_var = ctk.StringVar(value=self._settings["audio_format"])
         ctk.CTkOptionMenu(
@@ -130,11 +136,12 @@ class App(ctk.CTk):
         ff = ctk.CTkFrame(scard, fg_color="transparent")
         ff.grid(row=3, column=1, padx=(0, 12), pady=6, sticky="w")
         self._fname_vars = {}
+        _labels = {"date": "date", "time": "time", "browser": "browser", "tab": "tab name"}
         for i, part in enumerate(FILENAME_PARTS):
             var = ctk.BooleanVar(value=parts_cfg.get(part, part in ("date", "time")))
             self._fname_vars[part] = var
             ctk.CTkCheckBox(
-                ff, text=part, variable=var, width=1,
+                ff, text=_labels.get(part, part), variable=var, width=1,
                 font=("Segoe UI", 10), text_color=TEXT_SECONDARY,
                 checkbox_width=18, checkbox_height=18, corner_radius=4,
                 border_width=2, command=self._save,
@@ -198,6 +205,11 @@ class App(ctk.CTk):
             if self._recorder.is_recording:
                 self._recorder.stop()
             self._set_state("idle")
+
+    def _open_folder(self):
+        path = self._path_var.get()
+        if os.path.exists(path):
+            os.startfile(path)
 
     def _pick_folder(self):
         path = filedialog.askdirectory(initialdir=self._path_var.get())
@@ -286,7 +298,10 @@ class App(ctk.CTk):
                     elapsed = int(time.time() - rec_start) if rec_start else 0
                     m, s = divmod(elapsed, 60)
                     duration = f"{m}m {s}s"
-                    self._recorder.stop()
+                    try:
+                        self._recorder.stop()
+                    except Exception as e:
+                        log.error(f"Stop/convert error: {e}")
                     rec_start = None
                     self.after(0, self._set_state, "monitoring")
                     self.after(0, self._notify, "Recording saved", f"Duration: {duration}", STATE_COLORS["monitoring"])
