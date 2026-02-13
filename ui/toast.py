@@ -1,13 +1,13 @@
 import customtkinter as ctk
-from ui.theme import BG_CARD, TEXT_PRIMARY, TEXT_SECONDARY, TOAST_DURATION
+from ui.theme import BG_CARD_ELEVATED, TEXT_PRIMARY, TEXT_SECONDARY, TOAST_DURATION
 
 
 class Toast(ctk.CTkToplevel):
-    def __init__(self, parent, title, msg, accent="#27ae60"):
+    def __init__(self, parent, title, msg, accent="#2ecc71"):
         super().__init__(parent)
         self.overrideredirect(True)
         self.attributes("-topmost", True)
-        self.configure(fg_color=BG_CARD)
+        self.configure(fg_color=BG_CARD_ELEVATED)
 
         w, h = 280, 64
         sx = self.winfo_screenwidth() - w - 20

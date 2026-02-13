@@ -42,7 +42,20 @@ class Recorder:
         )
         os.makedirs(day_dir, exist_ok=True)
 
-        tag = now.strftime("meet_%Y-%m-%d_%H-%M-%S")
+        prefix = self._settings.get("filename_prefix", "").strip()
+        parts_cfg = self._settings.get("filename_parts", {"date": True, "time": True})
+        values = {
+            "date": now.strftime("%Y-%m-%d"),
+            "time": now.strftime("%H-%M-%S"),
+            "browser": session_info[0]["process"].replace(".exe", "") if session_info else "unknown",
+        }
+        parts = []
+        if prefix:
+            parts.append(prefix)
+        parts.extend(values[k] for k in ("date", "time", "browser") if parts_cfg.get(k))
+        if not parts:
+            parts = [now.strftime("recording_%Y-%m-%d_%H-%M-%S")]
+        tag = "_".join(parts)
         self._output_path = os.path.join(day_dir, f"{tag}.wav")
 
         self._stop_event.clear()
@@ -58,20 +71,32 @@ class Recorder:
         self._thread = None
         log.info(f"Recording stopped -> {self._output_path}")
 
-        if self._settings.get("audio_format") == "mp3":
-            self._convert_to_mp3()
+        fmt = self._settings.get("audio_format", "wav")
+        if fmt != "wav":
+            self._convert(fmt)
 
-    def _convert_to_mp3(self):
+    _FFMPEG_ARGS = {
+        "mp3":  ["-b:a", "192k"],
+        "flac": ["-c:a", "flac"],
+        "ogg":  ["-c:a", "libvorbis", "-q:a", "5"],
+        "m4a":  ["-c:a", "aac", "-b:a", "192k"],
+        "opus": ["-c:a", "libopus", "-b:a", "128k"],
+        "aac":  ["-c:a", "aac", "-b:a", "192k"],
+        "wma":  ["-c:a", "wmav2", "-b:a", "192k"],
+    }
+
+    def _convert(self, fmt):
         wav_path = self._output_path
-        mp3_path = wav_path.replace(".wav", ".mp3")
+        out_path = wav_path.rsplit(".", 1)[0] + f".{fmt}"
+        args = self._FFMPEG_ARGS.get(fmt, [])
         try:
             subprocess.run(
-                ["ffmpeg", "-y", "-i", wav_path, "-b:a", "192k", mp3_path],
+                ["ffmpeg", "-y", "-i", wav_path] + args + [out_path],
                 capture_output=True, check=True,
             )
             os.remove(wav_path)
-            self._output_path = mp3_path
-            log.info(f"Converted to MP3 -> {mp3_path}")
+            self._output_path = out_path
+            log.info(f"Converted to {fmt.upper()} -> {out_path}")
         except FileNotFoundError:
             log.warning("ffmpeg not found, keeping WAV")
         except subprocess.CalledProcessError as e:

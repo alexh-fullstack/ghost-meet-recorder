@@ -1,15 +1,16 @@
 STATE_COLORS = {
-    "idle": "#888888",
-    "monitoring": "#27ae60",
+    "idle": "#555555",
+    "monitoring": "#2ecc71",
     "recording": "#e74c3c",
 }
 
-BG_DARK = "#1a1a1a"
-BG_CARD = "#242424"
-BG_CONTROL = "#333333"
-BG_CONTROL_HOVER = "#444444"
-BG_INPUT = "#1e1e1e"
-TEXT_PRIMARY = "#e8e8e8"
-TEXT_SECONDARY = "#888888"
+BG_DARK = "#111111"
+BG_CARD = "#1c1c1e"
+BG_CARD_ELEVATED = "#232326"
+BG_CONTROL = "#2c2c2e"
+BG_CONTROL_HOVER = "#3a3a3c"
+BG_INPUT = "#161618"
+TEXT_PRIMARY = "#f0f0f0"
+TEXT_SECONDARY = "#707075"
 TOAST_DURATION = 3000
-PAD = 16
+PAD = 14

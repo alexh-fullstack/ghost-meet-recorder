@@ -5,7 +5,8 @@ import logging
 APP_NAME = "Ghost Meet Recorder"
 BROWSER_PROCESSES = {"chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe"}
 POLL_INTERVAL = 2
-AUDIO_FORMATS = ["wav", "mp3"]
+AUDIO_FORMATS = ["wav", "mp3", "flac", "ogg", "m4a", "opus", "aac", "wma"]
+FILENAME_PARTS = ["date", "time", "browser"]
 
 CONFIG_DIR = os.path.join(os.environ.get("APPDATA", ""), APP_NAME)
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
@@ -15,6 +16,8 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 DEFAULTS = {
     "recordings_dir": DEFAULT_RECORDINGS_DIR,
     "audio_format": "wav",
+    "filename_prefix": "meet",
+    "filename_parts": {"date": True, "time": True, "browser": False},
     "notifications": True,
 }
 
