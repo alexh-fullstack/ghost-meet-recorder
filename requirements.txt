@@ -1,0 +1,8 @@
+pycaw
+comtypes
+psutil
+PyAudioWPatch
+numpy
+customtkinter
+pystray
+Pillow
