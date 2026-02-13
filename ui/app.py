@@ -4,12 +4,14 @@ import ctypes
 import threading
 import comtypes
 from tkinter import filedialog
+import pystray
 import customtkinter as ctk
 from config import load_settings, save_settings, AUDIO_FORMATS, POLL_INTERVAL, APP_NAME
 from detector import get_browser_mic_sessions
 from recorder import Recorder
 from ui.theme import *  # noqa: F403
-from ui.icons import make_ico
+from ui.icons import make_icon, make_ico
+from ui.toast import Toast
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_NAME)
-        self.geometry("360x220")
+        self.geometry("360x250")
         self.resizable(False, False)
         self.configure(fg_color=BG_DARK)
         self.iconbitmap(make_ico(STATE_COLORS["idle"]))
@@ -35,6 +37,7 @@ class App(ctk.CTk):
         self._recorder = Recorder(self._settings)
         self._enabled = True
         self._monitoring = False
+        self._tray_icon = None
         self._state = "idle"
 
         self._build_ui()
@@ -87,7 +90,7 @@ class App(ctk.CTk):
         scard.grid(row=1, column=0, padx=PAD, pady=(0, PAD), sticky="ew")
         scard.grid_columnconfigure(1, weight=1)
 
-        for label, r in [("Save to", 0), ("Format", 1)]:
+        for label, r in [("Save to", 0), ("Format", 1), ("Notifications", 2)]:
             ctk.CTkLabel(
                 scard, text=label, font=("Segoe UI", 12), text_color=TEXT_SECONDARY
             ).grid(row=r, column=0, padx=14, pady=7, sticky="w")
@@ -114,7 +117,12 @@ class App(ctk.CTk):
             corner_radius=6, command=lambda _: self._save()
         ).grid(row=1, column=1, padx=(0, 14), pady=7, sticky="w")
 
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self._notif_var = ctk.BooleanVar(value=self._settings.get("notifications", True))
+        ctk.CTkSwitch(
+            scard, text="", variable=self._notif_var, width=44, command=self._save
+        ).grid(row=2, column=1, padx=(0, 14), pady=7, sticky="w")
+
+        self.protocol("WM_DELETE_WINDOW", self._hide_to_tray)
 
     # --- state ---
 
@@ -140,10 +148,18 @@ class App(ctk.CTk):
         else:
             self._toggle_btn.configure(text="\u23f8", text_color=TEXT_SECONDARY)
 
+        self._update_window_icon(color)
+        self._update_tray_icon(color)
+
+    def _update_window_icon(self, color):
         try:
             self.iconbitmap(make_ico(color))
         except Exception:
             pass
+
+    def _update_tray_icon(self, color):
+        if self._tray_icon:
+            self._tray_icon.icon = make_icon(color)
 
     # --- controls ---
 
@@ -165,15 +181,57 @@ class App(ctk.CTk):
     def _save(self):
         self._settings["recordings_dir"] = self._path_var.get()
         self._settings["audio_format"] = self._format_var.get()
+        self._settings["notifications"] = self._notif_var.get()
         save_settings(self._settings)
         self._recorder.update_settings(self._settings)
 
-    # --- monitor ---
+    def _notify(self, title, msg, accent="#27ae60"):
+        if not self._settings.get("notifications", True):
+            return
+        Toast(self, title, msg, accent)
+
+    # --- tray ---
 
     def _start_monitoring(self):
         self._monitoring = True
         self._set_state("monitoring")
         threading.Thread(target=self._monitor_loop, daemon=True).start()
+
+    def _hide_to_tray(self):
+        self.withdraw()
+        if not self._tray_icon:
+            self._create_tray()
+
+    def _create_tray(self):
+        menu = pystray.Menu(
+            pystray.MenuItem("Show", self._show_from_tray, default=True),
+            pystray.MenuItem(
+                lambda _: "Disable" if self._enabled else "Enable",
+                self._tray_toggle
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Quit", self._quit),
+        )
+        self._tray_icon = pystray.Icon(
+            APP_NAME, make_icon(STATE_COLORS[self._state]), APP_NAME, menu
+        )
+        threading.Thread(target=self._tray_icon.run, daemon=True).start()
+
+    def _show_from_tray(self, icon=None, item=None):
+        self.after(0, self.deiconify)
+
+    def _tray_toggle(self, icon=None, item=None):
+        self.after(0, self._toggle_enabled)
+
+    def _quit(self, icon=None, item=None):
+        self._monitoring = False
+        if self._recorder.is_recording:
+            self._recorder.stop()
+        if self._tray_icon:
+            self._tray_icon.stop()
+        self.after(0, self.destroy)
+
+    # --- monitor ---
 
     def _monitor_loop(self):
         comtypes.CoInitializeEx(comtypes.COINIT_MULTITHREADED)
@@ -192,12 +250,17 @@ class App(ctk.CTk):
                     self._recorder.start(sessions)
                     rec_start = time.time()
                     self.after(0, self._set_state, "recording", names)
+                    self.after(0, self._notify, "Recording started", names, STATE_COLORS["recording"])
 
                 elif not sessions and self._recorder.is_recording:
                     log.info("MIC RELEASED -- session ended")
+                    elapsed = int(time.time() - rec_start) if rec_start else 0
+                    m, s = divmod(elapsed, 60)
+                    duration = f"{m}m {s}s"
                     self._recorder.stop()
                     rec_start = None
                     self.after(0, self._set_state, "monitoring")
+                    self.after(0, self._notify, "Recording saved", f"Duration: {duration}", STATE_COLORS["monitoring"])
 
                 if self._recorder.is_recording and rec_start:
                     elapsed = int(time.time() - rec_start)
